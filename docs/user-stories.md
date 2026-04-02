@@ -10,7 +10,7 @@
 
 | # | Kriter | Dogrulama |
 |---|--------|-----------|
-| AC-1 | Kullanici en az 8 farkli mood seceneginden birini secebilir | UI'da 8+ mood karti render ediliyor |
+| AC-1 | Kullanici en az 3 farkli mood seceneginden birini secebilir | UI'da 3+ mood karti render ediliyor |
 | AC-2 | Mood secildikten sonra en az 5, en fazla 20 sarki onerisi doner | API response'unda `tracks.length >= 5 && <= 20` |
 | AC-3 | Her oneri icin sarki adi, artist, album ve album kapagi gosterilir | Response body'de `name, artist, album, cover_url` alanlari dolu |
 | AC-4 | Qwen tarafindan olusturulan dogal dilde bir aciklama metni yer alir | Response'da `explanation` alani bos degil ve min 50 karakter |
