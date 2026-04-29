@@ -18,6 +18,17 @@ Kurallar:
 """
 
 MOOD_DESCRIPTIONS = {
+    "happy": "mutlu, keyifli, pozitif",
+    "sad": "uzgun, hüzünlü, melankolik",
+    "angry": "ofkeli, gergin, sert",
+    "relaxed": "rahat, sakin, huzurlu",
+    "energetic": "enerjik, hareketli, yuksek tempolu",
+    "romantic": "romantik, duygusal, sicak",
+    "nostalgic": "nostaljik, eski gunler, retro",
+    "focused": "odakli, minimal, konsantrasyon",
+}
+
+MOOD_EMBEDDING_HINTS = {
     "happy": "happy joyful upbeat positive cheerful bright major energetic",
     "sad": "sad melancholic somber depressed heartbroken dark minor slow",
     "angry": "angry aggressive intense powerful loud heavy distorted",

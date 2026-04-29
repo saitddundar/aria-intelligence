@@ -6,6 +6,13 @@ from config.settings import settings
 class TrackEmbedder:
     def __init__(self):
         self.model = SentenceTransformer(settings.embedding.model_name)
+        model_name = settings.embedding.model_name.lower()
+        if "bge-m3" in model_name:
+            self.doc_prefix = "passage: "
+            self.query_prefix = "query: "
+        else:
+            self.doc_prefix = ""
+            self.query_prefix = ""
 
     def _track_to_text(self, track: dict) -> str:
         """Convert track metadata to a text representation for embedding."""
@@ -53,9 +60,16 @@ class TrackEmbedder:
 
         return ". ".join(parts)
 
+    def track_to_text(self, track: dict) -> str:
+        return self._track_to_text(track)
+
+    @staticmethod
+    def _apply_prefix(prefix: str, text: str) -> str:
+        return f"{prefix}{text}" if prefix else text
+
     def embed_tracks(self, tracks: list[dict]) -> list[list[float]]:
         """Embed a list of tracks. Returns list of vectors."""
-        texts = [self._track_to_text(t) for t in tracks]
+        texts = [self._apply_prefix(self.doc_prefix, self._track_to_text(t)) for t in tracks]
         embeddings = self.model.encode(
             texts,
             batch_size=settings.embedding.batch_size,
@@ -66,5 +80,6 @@ class TrackEmbedder:
 
     def embed_query(self, query: str) -> list[float]:
         """Embed a single query string (e.g. mood description)."""
-        embedding = self.model.encode(query, normalize_embeddings=True)
+        query_text = self._apply_prefix(self.query_prefix, query)
+        embedding = self.model.encode(query_text, normalize_embeddings=True)
         return embedding.tolist()
