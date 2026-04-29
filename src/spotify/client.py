@@ -156,9 +156,13 @@ def fetch_tracks_by_genre(genre: str, limit: int = 50) -> list[dict]:
     """Search tracks by genre with full metadata enrichment."""
     sp = get_spotify_client()
     limit = min(limit, 50)  # Spotify search API max
+    genre_query = genre.strip()
+    if " " in genre_query:
+        genre_query = f'"{genre_query}"'
+
     results = _retry(
         "spotify.search",
-        lambda: sp.search(q=f"genre:{genre}", type="track", limit=limit),
+        lambda: sp.search(q=f"genre:{genre_query}", type="track", limit=limit),
     )
 
     tracks = []
