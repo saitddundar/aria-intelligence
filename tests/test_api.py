@@ -11,7 +11,9 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    data = response.json()
+    assert data["status"] in {"ok", "degraded"}
+    assert "components" in data
 
 
 def test_list_moods():

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Query
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from src.embedding.embedder import TrackEmbedder
@@ -7,45 +9,25 @@ from src.llm.generator import QwenGenerator
 from src.llm.prompts import MOOD_DESCRIPTIONS
 from src.rag.chain import RAGChain
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
-# Lazy-loaded singletons
-_embedder: TrackEmbedder | None = None
-_store: VectorStore | None = None
-_generator: QwenGenerator | None = None
-_rag_chain: RAGChain | None = None
+
+def get_embedder(request: Request) -> TrackEmbedder:
+    return request.app.state.embedder
 
 
-def get_embedder() -> TrackEmbedder:
-    global _embedder
-    if _embedder is None:
-        _embedder = TrackEmbedder()
-    return _embedder
+def get_store(request: Request) -> VectorStore:
+    return request.app.state.store
 
 
-def get_store() -> VectorStore:
-    global _store
-    if _store is None:
-        _store = VectorStore()
-    return _store
+def get_generator(request: Request) -> QwenGenerator:
+    return request.app.state.generator
 
 
-def get_generator() -> QwenGenerator:
-    global _generator
-    if _generator is None:
-        _generator = QwenGenerator()
-    return _generator
-
-
-def get_rag_chain() -> RAGChain:
-    global _rag_chain
-    if _rag_chain is None:
-        _rag_chain = RAGChain(
-            embedder=get_embedder(),
-            store=get_store(),
-            generator=get_generator(),
-        )
-    return _rag_chain
+def get_rag_chain(request: Request) -> RAGChain:
+    return request.app.state.rag_chain
 
 
 class MoodRequest(BaseModel):
@@ -72,10 +54,19 @@ class RecommendResponse(BaseModel):
 
 
 @router.post("/recommend", response_model=RecommendResponse)
-def recommend_by_mood(req: MoodRequest):
+def recommend_by_mood(
+    req: MoodRequest,
+    chain: RAGChain = Depends(get_rag_chain),
+):
     """Get music recommendations based on mood using RAG pipeline."""
-    chain = get_rag_chain()
-    result = chain.recommend(req.mood, limit=req.limit)
+    try:
+        result = chain.recommend(req.mood, limit=req.limit)
+    except Exception as e:
+        logger.exception(f"Recommendation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Recommendation service unavailable",
+        )
 
     tracks = [
         TrackResponse(
@@ -100,13 +91,22 @@ def recommend_by_mood(req: MoodRequest):
 
 
 @router.get("/search")
-def search_by_text(q: str = Query(..., description="Free text query"), limit: int = 10):
+def search_by_text(
+    q: str = Query(..., description="Free text query"),
+    limit: int = 10,
+    embedder: TrackEmbedder = Depends(get_embedder),
+    store: VectorStore = Depends(get_store),
+):
     """Search tracks by free text."""
-    embedder = get_embedder()
-    query_vector = embedder.embed_query(q)
-
-    store = get_store()
-    return store.search(query_vector, limit=limit)
+    try:
+        query_vector = embedder.embed_query(q)
+        return store.search(query_vector, limit=limit)
+    except Exception as e:
+        logger.exception(f"Search failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Search service unavailable",
+        )
 
 
 @router.get("/moods")
