@@ -10,13 +10,14 @@ Mevcut Sarkilar:
 Yanitini asagidaki JSON formatinda ver:
 {{
     "selected_indices": [1, 3, 5],
-    "explanation": "Bu sarkilari sectim cunku..."
+    "explanation": "Sinyaller: genre + enerji. Neden: ..."
 }}
 
 Kurallar:
 - selected_indices listesinde sarki numaralarini (koseli parantez icindeki sayilar) kullan
 - Tam olarak {top_k} sarki sec
-- Gerekce en az iki sinyale dayansin (genre, audio_features ipucu, yil/donem, tempo/enerji)
+- Aciklamayi su formatta yaz: "Sinyaller: <en az 2 ipucu>. Neden: <2-3 cumle>"
+- Sinyaller listesinde en az 2 farkli ipucu olsun (genre, audio_features, yil/donem, tempo/enerji)
 - Ayni sanatcidan en fazla {max_per_artist} sarki sec (mecbur kalmadikca)
 - Aciklamayi Turkce yaz, 2-3 cumle yeterli
 """
