@@ -1,7 +1,9 @@
 import logging
+import time
 
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy.exceptions import SpotifyException
 
 from config.settings import settings
 
@@ -21,6 +23,23 @@ def get_spotify_client() -> spotipy.Spotify:
     return _client
 
 
+def _retry(operation_name: str, func):
+    retries = settings.spotify.retry_count
+    backoff = settings.spotify.retry_backoff_seconds
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            return func()
+        except (SpotifyException, Exception) as e:
+            last_exc = e
+            if attempt >= retries:
+                break
+            sleep_s = backoff * (2 ** attempt)
+            logger.warning(f"{operation_name} failed, retrying in {sleep_s:.2f}s: {e}")
+            time.sleep(sleep_s)
+    raise last_exc
+
+
 def _enrich_with_genres(sp: spotipy.Spotify, tracks: list[dict]):
     """Fetch artist genres in batch and attach to tracks."""
     artist_ids = set()
@@ -36,7 +55,7 @@ def _enrich_with_genres(sp: spotipy.Spotify, tracks: list[dict]):
     for i in range(0, len(artist_id_list), 50):
         batch = artist_id_list[i:i + 50]
         try:
-            artists_data = sp.artists(batch)
+            artists_data = _retry("spotify.artists", lambda: sp.artists(batch))
             for artist in artists_data["artists"]:
                 artist_genres[artist["id"]] = artist.get("genres", [])
         except Exception as e:
@@ -57,7 +76,7 @@ def _enrich_with_audio_features(sp: spotipy.Spotify, tracks: list[dict]):
         batch_ids = track_ids[i:i + 100]
         batch_tracks = tracks[i:i + 100]
         try:
-            features_list = sp.audio_features(batch_ids)
+            features_list = _retry("spotify.audio_features", lambda: sp.audio_features(batch_ids))
         except Exception as e:
             logger.warning(f"Failed to fetch audio features: {e}")
             continue
@@ -104,7 +123,7 @@ def _parse_track_item(track: dict) -> dict:
 def fetch_playlist_tracks(playlist_id: str) -> list[dict]:
     """Fetch all tracks from a Spotify playlist with full metadata."""
     sp = get_spotify_client()
-    results = sp.playlist_tracks(playlist_id)
+    results = _retry("spotify.playlist_tracks", lambda: sp.playlist_tracks(playlist_id))
 
     tracks = []
     while results:
@@ -116,7 +135,7 @@ def fetch_playlist_tracks(playlist_id: str) -> list[dict]:
 
         # paginate
         if results.get("next"):
-            results = sp.next(results)
+            results = _retry("spotify.next", lambda: sp.next(results))
         else:
             break
 
@@ -132,7 +151,10 @@ def fetch_tracks_by_genre(genre: str, limit: int = 50) -> list[dict]:
     """Search tracks by genre with full metadata enrichment."""
     sp = get_spotify_client()
     limit = min(limit, 50)  # Spotify search API max
-    results = sp.search(q=f"genre:{genre}", type="track", limit=limit)
+    results = _retry(
+        "spotify.search",
+        lambda: sp.search(q=f"genre:{genre}", type="track", limit=limit),
+    )
 
     tracks = []
     for track in results["tracks"]["items"]:

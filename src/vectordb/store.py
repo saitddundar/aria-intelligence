@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import time
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
@@ -29,11 +30,14 @@ class VectorStore:
     def create_collection(self):
         """Create the vector collection if it doesn't exist."""
         try:
-            self.client.create_collection(
-                collection_name=self.collection,
-                vectors_config=VectorParams(
-                    size=settings.vectordb.vector_size,
-                    distance=Distance.COSINE,
+            self._retry(
+                "qdrant.create_collection",
+                lambda: self.client.create_collection(
+                    collection_name=self.collection,
+                    vectors_config=VectorParams(
+                        size=settings.vectordb.vector_size,
+                        distance=Distance.COSINE,
+                    ),
                 ),
             )
             logger.info(f"Created collection '{self.collection}'")
@@ -70,9 +74,12 @@ class VectorStore:
         # batch upsert to avoid gRPC message size limits
         for i in range(0, len(points), UPSERT_BATCH_SIZE):
             batch = points[i:i + UPSERT_BATCH_SIZE]
-            self.client.upsert(
-                collection_name=self.collection,
-                points=batch,
+            self._retry(
+                "qdrant.upsert",
+                lambda: self.client.upsert(
+                    collection_name=self.collection,
+                    points=batch,
+                ),
             )
 
         logger.info(f"Upserted {len(points)} tracks to '{self.collection}'")
@@ -86,13 +93,32 @@ class VectorStore:
         """Search for similar tracks by vector with optional score filtering."""
         limit = min(limit, MAX_SEARCH_LIMIT)
 
-        results = self.client.query_points(
-            collection_name=self.collection,
-            query=query_vector,
-            limit=limit,
-            score_threshold=score_threshold,
+        results = self._retry(
+            "qdrant.query_points",
+            lambda: self.client.query_points(
+                collection_name=self.collection,
+                query=query_vector,
+                limit=limit,
+                score_threshold=score_threshold,
+            ),
         )
         return [
             {"score": r.score, **r.payload}
             for r in results.points
         ]
+
+    def _retry(self, operation_name: str, func):
+        retries = settings.vectordb.retry_count
+        backoff = settings.vectordb.retry_backoff_seconds
+        last_exc = None
+        for attempt in range(retries + 1):
+            try:
+                return func()
+            except Exception as e:
+                last_exc = e
+                if attempt >= retries:
+                    break
+                sleep_s = backoff * (2 ** attempt)
+                logger.warning(f"{operation_name} failed, retrying in {sleep_s:.2f}s: {e}")
+                time.sleep(sleep_s)
+        raise last_exc
