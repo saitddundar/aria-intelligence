@@ -200,9 +200,27 @@ class RAGChain:
 
         # Map 1-based indices back to tracks
         selected = []
+        selected_ids = set()
         for idx in result["selected_indices"]:
             if 1 <= idx <= len(candidates):
-                selected.append(candidates[idx - 1])
+                track = candidates[idx - 1]
+                sid = track.get("spotify_id")
+                if sid in selected_ids:
+                    continue
+                selected_ids.add(sid)
+                selected.append(track)
+
+        # Guardrail: require exact count when possible
+        if len(selected) != top_k:
+            logger.warning(
+                f"LLM selected {len(selected)} tracks, expected {top_k}; falling back"
+            )
+            return RAGResponse(
+                tracks=candidates[:limit],
+                explanation="",
+                rag_used=False,
+                retrieval_count=len(candidates),
+            )
 
         # Fill remaining slots if LLM selected fewer than limit
         if len(selected) < limit:
