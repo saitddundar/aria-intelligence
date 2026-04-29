@@ -3,12 +3,17 @@ from pydantic import BaseModel
 
 from src.embedding.embedder import TrackEmbedder
 from src.vectordb.store import VectorStore
+from src.llm.generator import QwenGenerator
+from src.llm.prompts import MOOD_DESCRIPTIONS
+from src.rag.chain import RAGChain
 
 router = APIRouter()
 
 # Lazy-loaded singletons
 _embedder: TrackEmbedder | None = None
 _store: VectorStore | None = None
+_generator: QwenGenerator | None = None
+_rag_chain: RAGChain | None = None
 
 
 def get_embedder() -> TrackEmbedder:
@@ -25,16 +30,22 @@ def get_store() -> VectorStore:
     return _store
 
 
-MOOD_DESCRIPTIONS = {
-    "happy": "happy joyful upbeat positive cheerful bright major energetic",
-    "sad": "sad melancholic somber depressed heartbroken dark minor slow",
-    "angry": "angry aggressive intense powerful loud heavy distorted",
-    "relaxed": "relaxed calm peaceful gentle soft acoustic soothing",
-    "energetic": "energetic hype powerful fast intense danceable groovy",
-    "romantic": "romantic love tender warm intimate soft emotional",
-    "nostalgic": "nostalgic memories retro classic old school vintage",
-    "focused": "focused ambient minimal instrumental concentration study",
-}
+def get_generator() -> QwenGenerator:
+    global _generator
+    if _generator is None:
+        _generator = QwenGenerator()
+    return _generator
+
+
+def get_rag_chain() -> RAGChain:
+    global _rag_chain
+    if _rag_chain is None:
+        _rag_chain = RAGChain(
+            embedder=get_embedder(),
+            store=get_store(),
+            generator=get_generator(),
+        )
+    return _rag_chain
 
 
 class MoodRequest(BaseModel):
@@ -54,18 +65,19 @@ class TrackResponse(BaseModel):
     score: float
 
 
-@router.post("/recommend", response_model=list[TrackResponse])
+class RecommendResponse(BaseModel):
+    tracks: list[TrackResponse]
+    explanation: str = ""
+    rag_used: bool = False
+
+
+@router.post("/recommend", response_model=RecommendResponse)
 def recommend_by_mood(req: MoodRequest):
-    """Get music recommendations based on mood."""
-    mood_text = MOOD_DESCRIPTIONS.get(req.mood.lower(), req.mood)
+    """Get music recommendations based on mood using RAG pipeline."""
+    chain = get_rag_chain()
+    result = chain.recommend(req.mood, limit=req.limit)
 
-    embedder = get_embedder()
-    query_vector = embedder.embed_query(mood_text)
-
-    store = get_store()
-    results = store.search(query_vector, limit=req.limit)
-
-    return [
+    tracks = [
         TrackResponse(
             spotify_id=r.get("spotify_id", ""),
             name=r.get("name", ""),
@@ -77,13 +89,19 @@ def recommend_by_mood(req: MoodRequest):
             genres=r.get("genres", []),
             score=r.get("score", 0.0),
         )
-        for r in results
+        for r in result.tracks
     ]
+
+    return RecommendResponse(
+        tracks=tracks,
+        explanation=result.explanation,
+        rag_used=result.rag_used,
+    )
 
 
 @router.get("/search")
 def search_by_text(q: str = Query(..., description="Free text query"), limit: int = 10):
-    """Search tracks by free text (fallback for custom queries)."""
+    """Search tracks by free text."""
     embedder = get_embedder()
     query_vector = embedder.embed_query(q)
 
