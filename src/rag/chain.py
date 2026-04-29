@@ -60,6 +60,33 @@ class RAGChain:
         scored = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
         return [c for c, _ in scored]
 
+    @staticmethod
+    def _apply_diversity(
+        candidates: list[dict],
+        max_per_artist: int | None,
+        min_candidates: int,
+    ) -> list[dict]:
+        if not max_per_artist or max_per_artist < 1:
+            return candidates
+
+        counts: dict[str, int] = {}
+        filtered: list[dict] = []
+        for track in candidates:
+            artist = (track.get("artist") or "").strip().lower()
+            if not artist:
+                filtered.append(track)
+                continue
+            count = counts.get(artist, 0)
+            if count >= max_per_artist:
+                continue
+            counts[artist] = count + 1
+            filtered.append(track)
+
+        if len(filtered) < min_candidates:
+            return candidates
+
+        return filtered
+
     def recommend(self, mood: str, limit: int = 10) -> RAGResponse:
         # 1. Embed mood query
         mood_key = mood.strip().lower()
@@ -76,6 +103,12 @@ class RAGChain:
         )
 
         candidates = self._rerank_candidates(mood_text, candidates)
+        min_needed = min(limit, settings.rag.top_k_final)
+        candidates = self._apply_diversity(
+            candidates,
+            settings.rag.max_tracks_per_artist,
+            min_needed,
+        )
 
         if not candidates:
             return RAGResponse()
@@ -101,7 +134,13 @@ class RAGChain:
         self, mood: str, candidates: list[dict], limit: int
     ) -> RAGResponse:
         top_k = min(limit, settings.rag.top_k_final)
-        prompt = build_recommendation_prompt(mood, candidates, top_k)
+        prompt = build_recommendation_prompt(
+            mood=mood,
+            mood_detail=mood,
+            tracks=candidates,
+            top_k=top_k,
+            max_per_artist=settings.rag.max_tracks_per_artist or top_k,
+        )
 
         result = self.generator.generate_json(prompt)
 

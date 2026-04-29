@@ -28,7 +28,7 @@ def test_format_tracks_context_with_audio_features():
 
 def test_build_recommendation_prompt():
     tracks = [{"name": "Test", "artist": "A", "genres": ["jazz"]}]
-    prompt = build_recommendation_prompt("happy", tracks, 5)
+    prompt = build_recommendation_prompt("happy", "mutlu", tracks, 5, 2)
     assert "happy" in prompt
     assert "[1] Test - A" in prompt
     assert "5" in prompt

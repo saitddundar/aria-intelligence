@@ -11,10 +11,24 @@ def _optional_float(value: str, default: float | None) -> float | None:
         return default
 
 
+def _optional_int(value: str, default: int | None) -> int | None:
+    if value == "" or value.lower() == "none":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 @dataclass
 class SpotifyConfig:
     client_id: str = os.getenv("SPOTIFY_CLIENT_ID", "")
     client_secret: str = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+    retry_count: int = int(os.getenv("SPOTIFY_RETRY_COUNT", "3"))
+    retry_backoff_seconds: float = _optional_float(
+        os.getenv("SPOTIFY_RETRY_BACKOFF", "0.5"),
+        0.5,
+    ) or 0.5
 
 
 @dataclass
@@ -29,6 +43,11 @@ class VectorDBConfig:
     port: int = 6333  # Qdrant default
     collection_name: str = "aria_tracks"
     vector_size: int = 1024  # bge-m3 output dim
+    retry_count: int = int(os.getenv("QDRANT_RETRY_COUNT", "2"))
+    retry_backoff_seconds: float = _optional_float(
+        os.getenv("QDRANT_RETRY_BACKOFF", "0.5"),
+        0.5,
+    ) or 0.5
 
 
 @dataclass
@@ -52,6 +71,10 @@ class RAGConfig:
     )
     enable_reranker: bool = os.getenv("RAG_ENABLE_RERANKER", "true").lower() == "true"
     reranker_model_name: str = os.getenv("RAG_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+    max_tracks_per_artist: int | None = _optional_int(
+        os.getenv("RAG_MAX_TRACKS_PER_ARTIST", "2"),
+        2,
+    )
 
 
 @dataclass

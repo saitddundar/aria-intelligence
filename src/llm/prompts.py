@@ -1,20 +1,24 @@
-RECOMMENDATION_PROMPT = """Kullanıcı şu an "{mood}" hissediyor.
+RECOMMENDATION_PROMPT = """Kullanici su an "{mood}" hissediyor.
+Kisa aciklama: {mood_detail}
+Dil: Turkce.
 
-Aşağıdaki müzik listesini inceleyerek bu ruh haline en uygun {top_k} şarkıyı seç ve neden bu şarkıları seçtiğini doğal, samimi bir dille açıkla.
+Asagidaki muzik listesini inceleyerek bu ruh haline en uygun {top_k} sarkiyi sec ve neden bu sarkilari sectigini dogal, samimi bir dille acikla.
 
-Mevcut Şarkılar:
+Mevcut Sarkilar:
 {tracks_context}
 
-Yanıtını aşağıdaki JSON formatında ver:
+Yanitini asagidaki JSON formatinda ver:
 {{
-  "selected_indices": [1, 3, 5],
-  "explanation": "Bu şarkıları seçtim çünkü..."
+    "selected_indices": [1, 3, 5],
+    "explanation": "Bu sarkilari sectim cunku..."
 }}
 
 Kurallar:
-- selected_indices listesinde şarkı numaralarını (köşeli parantez içindeki sayılar) kullan
-- Tam olarak {top_k} şarkı seç
-- Açıklamayı Türkçe yaz, 2-3 cümle yeterli
+- selected_indices listesinde sarki numaralarini (koseli parantez icindeki sayilar) kullan
+- Tam olarak {top_k} sarki sec
+- Gerekce en az iki sinyale dayansin (genre, audio_features ipucu, yil/donem, tempo/enerji)
+- Ayni sanatcidan en fazla {max_per_artist} sarki sec (mecbur kalmadikca)
+- Aciklamayi Turkce yaz, 2-3 cumle yeterli
 """
 
 MOOD_DESCRIPTIONS = {
@@ -63,9 +67,17 @@ def format_tracks_context(tracks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def build_recommendation_prompt(mood: str, tracks: list[dict], top_k: int) -> str:
+def build_recommendation_prompt(
+    mood: str,
+    mood_detail: str,
+    tracks: list[dict],
+    top_k: int,
+    max_per_artist: int,
+) -> str:
     return RECOMMENDATION_PROMPT.format(
         mood=mood,
+        mood_detail=mood_detail,
         tracks_context=format_tracks_context(tracks),
         top_k=top_k,
+        max_per_artist=max_per_artist,
     )
