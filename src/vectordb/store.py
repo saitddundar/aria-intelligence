@@ -110,6 +110,7 @@ class VectorStore:
     def _retry(self, operation_name: str, func):
         retries = settings.vectordb.retry_count
         backoff = settings.vectordb.retry_backoff_seconds
+        max_backoff = settings.vectordb.retry_max_backoff_seconds
         last_exc = None
         for attempt in range(retries + 1):
             try:
@@ -118,7 +119,7 @@ class VectorStore:
                 last_exc = e
                 if attempt >= retries:
                     break
-                sleep_s = backoff * (2 ** attempt)
+                sleep_s = min(backoff * (2 ** attempt), max_backoff)
                 logger.warning(f"{operation_name} failed, retrying in {sleep_s:.2f}s: {e}")
                 time.sleep(sleep_s)
         raise last_exc

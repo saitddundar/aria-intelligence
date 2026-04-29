@@ -26,6 +26,7 @@ def get_spotify_client() -> spotipy.Spotify:
 def _retry(operation_name: str, func):
     retries = settings.spotify.retry_count
     backoff = settings.spotify.retry_backoff_seconds
+    max_backoff = settings.spotify.retry_max_backoff_seconds
     last_exc = None
     for attempt in range(retries + 1):
         try:
@@ -34,7 +35,7 @@ def _retry(operation_name: str, func):
             last_exc = e
             if attempt >= retries:
                 break
-            sleep_s = backoff * (2 ** attempt)
+            sleep_s = min(backoff * (2 ** attempt), max_backoff)
             logger.warning(f"{operation_name} failed, retrying in {sleep_s:.2f}s: {e}")
             time.sleep(sleep_s)
     raise last_exc
