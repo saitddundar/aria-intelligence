@@ -2,9 +2,16 @@ import json
 import re
 import logging
 
+from pydantic import BaseModel, ValidationError
+
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+class RecommendationPayload(BaseModel):
+    selected_indices: list[int]
+    explanation: str
 
 
 class QwenGenerator:
@@ -52,7 +59,15 @@ class QwenGenerator:
 
     def generate_json(self, prompt: str) -> dict | None:
         raw = self.generate(prompt)
-        return self._parse_json(raw)
+        parsed = self._parse_json(raw)
+        if not parsed:
+            return None
+        try:
+            validated = RecommendationPayload.model_validate(parsed)
+        except ValidationError as e:
+            logger.warning(f"Invalid LLM JSON schema: {e}")
+            return None
+        return validated.model_dump()
 
     @staticmethod
     def _parse_json(text: str) -> dict | None:
