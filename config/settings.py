@@ -74,6 +74,8 @@ class LLMConfig:
     n_gpu_layers: int = int(os.getenv("QWEN_GPU_LAYERS", "-1"))
     max_tokens: int = 512
     temperature: float = 0.7
+    reprompt_on_fail: bool = os.getenv("LLM_REPROMPT_ON_FAIL", "true").lower() == "true"
+    reprompt_max_retries: int = int(os.getenv("LLM_REPROMPT_MAX_RETRIES", "1"))
 
 
 @dataclass

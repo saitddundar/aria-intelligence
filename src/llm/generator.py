@@ -58,16 +58,36 @@ class QwenGenerator:
         return response["choices"][0]["message"]["content"]
 
     def generate_json(self, prompt: str) -> dict | None:
-        raw = self.generate(prompt)
-        parsed = self._parse_json(raw)
-        if not parsed:
-            return None
-        try:
-            validated = RecommendationPayload.model_validate(parsed)
-        except ValidationError as e:
-            logger.warning(f"Invalid LLM JSON schema: {e}")
-            return None
-        return validated.model_dump()
+        attempts = 0
+        max_retries = settings.llm.reprompt_max_retries if settings.llm.reprompt_on_fail else 0
+        last_error = None
+        current_prompt = prompt
+
+        while attempts <= max_retries:
+            raw = self.generate(current_prompt)
+            parsed = self._parse_json(raw)
+            if parsed:
+                try:
+                    validated = RecommendationPayload.model_validate(parsed)
+                    return validated.model_dump()
+                except ValidationError as e:
+                    last_error = e
+                    logger.warning(f"Invalid LLM JSON schema: {e}")
+            else:
+                last_error = "parse_failed"
+
+            if attempts >= max_retries:
+                break
+
+            current_prompt = (
+                f"{prompt}\n\n"
+                "Yanit JSON formatinda degil. Sadece gecerli JSON dondur. "
+                "Ek aciklama, kod blogu ya da metin yazma."
+            )
+            attempts += 1
+
+        logger.warning(f"LLM JSON reprompt failed: {last_error}")
+        return None
 
     @staticmethod
     def _parse_json(text: str) -> dict | None:
