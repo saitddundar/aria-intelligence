@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from config.settings import settings
+
 from src.rag.chain import RAGChain, RAGResponse
 
 
@@ -15,6 +17,9 @@ def _make_track(i: int) -> dict:
         "genres": ["pop"],
         "score": 0.9 - i * 0.05,
     }
+
+
+settings.rag.enable_reranker = False
 
 
 def test_recommend_fallback_without_generator():

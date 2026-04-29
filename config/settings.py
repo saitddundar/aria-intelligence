@@ -2,6 +2,15 @@ import os
 from dataclasses import dataclass
 
 
+def _optional_float(value: str, default: float | None) -> float | None:
+    if value == "" or value.lower() == "none":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
 @dataclass
 class SpotifyConfig:
     client_id: str = os.getenv("SPOTIFY_CLIENT_ID", "")
@@ -37,6 +46,12 @@ class RAGConfig:
     top_k_retrieval: int = 20
     top_k_final: int = 10
     fallback_on_error: bool = True
+    score_threshold: float | None = _optional_float(
+        os.getenv("RAG_SCORE_THRESHOLD", "0.2"),
+        0.2,
+    )
+    enable_reranker: bool = os.getenv("RAG_ENABLE_RERANKER", "true").lower() == "true"
+    reranker_model_name: str = os.getenv("RAG_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
 
 
 @dataclass
