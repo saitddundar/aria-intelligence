@@ -33,6 +33,10 @@ class SpotifyConfig:
         os.getenv("SPOTIFY_RETRY_MAX_BACKOFF", "4.0"),
         4.0,
     ) or 4.0
+    retry_jitter_ratio: float = _optional_float(
+        os.getenv("SPOTIFY_RETRY_JITTER", "0.2"),
+        0.2,
+    ) or 0.2
 
 
 @dataclass
@@ -56,6 +60,10 @@ class VectorDBConfig:
         os.getenv("QDRANT_RETRY_MAX_BACKOFF", "4.0"),
         4.0,
     ) or 4.0
+    retry_jitter_ratio: float = _optional_float(
+        os.getenv("QDRANT_RETRY_JITTER", "0.2"),
+        0.2,
+    ) or 0.2
 
 
 @dataclass
