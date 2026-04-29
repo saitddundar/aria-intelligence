@@ -23,15 +23,36 @@ class VectorDBConfig:
 
 
 @dataclass
+class LLMConfig:
+    model_path: str = os.getenv("QWEN_MODEL_PATH", "Qwen/Qwen2.5-1.5B-Instruct-GGUF")
+    model_file: str = os.getenv("QWEN_MODEL_FILE", "qwen2.5-1.5b-instruct-q4_k_m.gguf")
+    n_ctx: int = 4096
+    n_gpu_layers: int = int(os.getenv("QWEN_GPU_LAYERS", "-1"))
+    max_tokens: int = 512
+    temperature: float = 0.7
+
+
+@dataclass
+class RAGConfig:
+    top_k_retrieval: int = 20
+    top_k_final: int = 10
+    fallback_on_error: bool = True
+
+
+@dataclass
 class Settings:
     spotify: SpotifyConfig = None
     embedding: EmbeddingConfig = None
     vectordb: VectorDBConfig = None
+    llm: LLMConfig = None
+    rag: RAGConfig = None
 
     def __post_init__(self):
         self.spotify = self.spotify or SpotifyConfig()
         self.embedding = self.embedding or EmbeddingConfig()
         self.vectordb = self.vectordb or VectorDBConfig()
+        self.llm = self.llm or LLMConfig()
+        self.rag = self.rag or RAGConfig()
 
 
 settings = Settings()
