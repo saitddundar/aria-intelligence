@@ -87,11 +87,56 @@ class RAGChain:
 
         return filtered
 
+    @staticmethod
+    def _enforce_diversity(
+        selected: list[dict],
+        candidates: list[dict],
+        max_per_artist: int | None,
+        limit: int,
+    ) -> list[dict]:
+        if not max_per_artist or max_per_artist < 1:
+            return selected[:limit]
+
+        def _artist_key(track: dict) -> str:
+            return (track.get("artist") or "").strip().lower()
+
+        counts: dict[str, int] = {}
+        filtered: list[dict] = []
+        for track in selected:
+            artist = _artist_key(track)
+            if not artist:
+                filtered.append(track)
+                continue
+            count = counts.get(artist, 0)
+            if count >= max_per_artist:
+                continue
+            counts[artist] = count + 1
+            filtered.append(track)
+
+        if len(filtered) >= limit:
+            return filtered[:limit]
+
+        selected_ids = {t.get("spotify_id") for t in filtered}
+        for candidate in candidates:
+            if len(filtered) >= limit:
+                break
+            if candidate.get("spotify_id") in selected_ids:
+                continue
+            artist = _artist_key(candidate)
+            if artist and counts.get(artist, 0) >= max_per_artist:
+                continue
+            if artist:
+                counts[artist] = counts.get(artist, 0) + 1
+            filtered.append(candidate)
+
+        return filtered
+
     def recommend(self, mood: str, limit: int = 10) -> RAGResponse:
         # 1. Embed mood query
         mood_key = mood.strip().lower()
         mood_text = MOOD_EMBEDDING_HINTS.get(mood_key, mood)
-        mood_label = MOOD_DESCRIPTIONS.get(mood_key, mood)
+        mood_label = mood
+        mood_detail = MOOD_DESCRIPTIONS.get(mood_key, mood)
         query_vector = self.embedder.embed_query(mood_text)
 
         # 2. Retrieve candidates from Qdrant
@@ -116,7 +161,7 @@ class RAGChain:
         # 3. If generator available, use RAG to rerank and explain
         if self.generator and self.generator.is_available:
             try:
-                return self._rag_recommend(mood_label, candidates, limit)
+                return self._rag_recommend(mood_label, mood_detail, candidates, limit)
             except Exception as e:
                 logger.warning(f"RAG generation failed, falling back: {e}")
                 if not settings.rag.fallback_on_error:
@@ -131,12 +176,12 @@ class RAGChain:
         )
 
     def _rag_recommend(
-        self, mood: str, candidates: list[dict], limit: int
+        self, mood: str, mood_detail: str, candidates: list[dict], limit: int
     ) -> RAGResponse:
         top_k = min(limit, settings.rag.top_k_final)
         prompt = build_recommendation_prompt(
             mood=mood,
-            mood_detail=mood,
+            mood_detail=mood_detail,
             tracks=candidates,
             top_k=top_k,
             max_per_artist=settings.rag.max_tracks_per_artist or top_k,
@@ -167,6 +212,13 @@ class RAGChain:
                     break
                 if c.get("spotify_id") not in selected_set:
                     selected.append(c)
+
+        selected = self._enforce_diversity(
+            selected,
+            candidates,
+            settings.rag.max_tracks_per_artist,
+            limit,
+        )
 
         return RAGResponse(
             tracks=selected,
