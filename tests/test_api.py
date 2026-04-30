@@ -1,11 +1,28 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
 from src.api.main import app
+from src.api.routes import get_rag_chain, get_embedder, get_store, get_generator
 from src.rag.chain import RAGResponse
 
-client = TestClient(app)
+
+mock_store = MagicMock()
+mock_store.client.get_collection.return_value = True
+mock_store.collection = "aria_tracks"
+
+mock_embedder = MagicMock()
+mock_embedder.model = True
+
+mock_generator = MagicMock()
+mock_generator.is_available = True
+
+app.state.store = mock_store
+app.state.embedder = mock_embedder
+app.state.generator = mock_generator
+app.state.rag_chain = MagicMock()
+
+client = TestClient(app, raise_server_exceptions=True)
 
 
 def test_health():
@@ -25,8 +42,7 @@ def test_list_moods():
     assert len(moods) >= 3
 
 
-@patch("src.api.routes.get_rag_chain")
-def test_recommend(mock_chain):
+def test_recommend():
     mock_rag = MagicMock()
     mock_rag.recommend.return_value = RAGResponse(
         tracks=[
@@ -46,7 +62,8 @@ def test_recommend(mock_chain):
         rag_used=True,
         retrieval_count=20,
     )
-    mock_chain.return_value = mock_rag
+
+    app.dependency_overrides[get_rag_chain] = lambda: mock_rag
 
     response = client.post("/api/v1/recommend", json={"mood": "happy", "limit": 5})
     assert response.status_code == 200
@@ -55,3 +72,5 @@ def test_recommend(mock_chain):
     assert data["explanation"] == "Harika bir şarkı"
     assert len(data["tracks"]) == 1
     assert data["tracks"][0]["name"] == "Test Song"
+
+    app.dependency_overrides.clear()
