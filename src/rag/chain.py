@@ -210,16 +210,20 @@ class RAGChain:
                 selected_ids.add(sid)
                 selected.append(track)
 
-        # Guardrail: require exact count when possible
-        if len(selected) != top_k:
-            logger.warning(
-                f"LLM selected {len(selected)} tracks, expected {top_k}; falling back"
-            )
+        # Guardrail: if LLM selected nothing usable, fall back
+        if not selected:
+            logger.warning("LLM selected 0 valid tracks; falling back")
             return RAGResponse(
                 tracks=candidates[:limit],
                 explanation="",
                 rag_used=False,
                 retrieval_count=len(candidates),
+            )
+
+        if len(selected) != top_k:
+            logger.info(
+                f"LLM selected {len(selected)} tracks, expected {top_k}; "
+                "filling remaining slots from candidates"
             )
 
         # Fill remaining slots if LLM selected fewer than limit
