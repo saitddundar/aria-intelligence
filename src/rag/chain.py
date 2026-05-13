@@ -18,9 +18,14 @@ class RAGResponse:
     explanation: str = ""
     rag_used: bool = False
     retrieval_count: int = 0
+    reasons: dict[str, str] = field(default_factory=dict)
 
 
 class RAGChain:
+    """
+    Kullanıcının isteklerini alıp vektör veritabanında arama yapan ve 
+    sonuçları LLM ile filtreleyip açıklayan ana RAG (Retrieval-Augmented Generation) sınıfı.
+    """
     def __init__(
         self,
         embedder: TrackEmbedder,
@@ -33,6 +38,7 @@ class RAGChain:
         self._reranker: CrossEncoder | None = None
 
     def _get_reranker(self) -> CrossEncoder | None:
+        """Eğer ayarlanmışsa, sonuçları daha iyi sıralamak için bir CrossEncoder (Yeniden sıralayıcı) modeli yükler."""
         if not settings.rag.enable_reranker:
             return None
         if self._reranker is not None:
@@ -46,6 +52,7 @@ class RAGChain:
         return self._reranker
 
     def _rerank_candidates(self, query_text: str, candidates: list[dict]) -> list[dict]:
+        """Vektör aramasından gelen aday şarkıları, kullanıcının isteğine göre reranker modeliyle tekrar puanlayıp daha isabetli sıralar."""
         reranker = self._get_reranker()
         if not reranker:
             return candidates
@@ -66,6 +73,7 @@ class RAGChain:
         max_per_artist: int | None,
         min_candidates: int,
     ) -> list[dict]:
+        """Aynı sanatçıdan çok fazla şarkı gelmesini engelleyerek aday listesine çeşitlilik katar."""
         if not max_per_artist or max_per_artist < 1:
             return candidates
 
@@ -94,6 +102,7 @@ class RAGChain:
         max_per_artist: int | None,
         limit: int,
     ) -> list[dict]:
+        """LLM tarafından seçilen nihai listeye çeşitlilik kuralını (bir sanatçıdan max N şarkı) kesin olarak uygular."""
         if not max_per_artist or max_per_artist < 1:
             return selected[:limit]
 
@@ -132,6 +141,13 @@ class RAGChain:
         return filtered
 
     def recommend(self, mood: str, limit: int = 10) -> RAGResponse:
+        """
+        Ana tavsiye fonksiyonu:
+        1. Kullanıcının isteğini (mood) vektöre çevirir.
+        2. Vektör veritabanından benzer şarkıları bulur.
+        3. Sonuçları sıralar (rerank) ve çeşitlendirir.
+        4. En son LLM kullanarak nihai listeyi ve mantıklı bir açıklamayı oluşturur.
+        """
         # 1. Embed mood query
         mood_key = mood.strip().lower()
         mood_text = MOOD_EMBEDDING_HINTS.get(mood_key, mood)
@@ -178,6 +194,10 @@ class RAGChain:
     def _rag_recommend(
         self, mood: str, mood_detail: str, candidates: list[dict], limit: int
     ) -> RAGResponse:
+        """
+        Bulunan aday şarkıları LLM'e (Yapay Zeka) gönderir. 
+        LLM'den isteğe en uygun olanları seçmesini ve neden seçtiğini açıklayan bir JSON üretmesini ister.
+        """
         top_k = min(limit, settings.rag.top_k_final)
         prompt = build_recommendation_prompt(
             mood=mood,
@@ -198,6 +218,9 @@ class RAGChain:
                 retrieval_count=len(candidates),
             )
 
+        # Extract per-track reasons from LLM
+        reasons = result.get("reasons", {})
+
         # Map 1-based indices back to tracks
         selected = []
         selected_ids = set()
@@ -208,6 +231,10 @@ class RAGChain:
                 if sid in selected_ids:
                     continue
                 selected_ids.add(sid)
+                # Attach per-track reason
+                reason = reasons.get(str(idx), "")
+                if reason:
+                    track["reason"] = reason
                 selected.append(track)
 
         # Guardrail: if LLM selected nothing usable, fall back
@@ -247,4 +274,5 @@ class RAGChain:
             explanation=result.get("explanation", ""),
             rag_used=True,
             retrieval_count=len(candidates),
+            reasons=reasons,
         )
