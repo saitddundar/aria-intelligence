@@ -70,6 +70,7 @@ class VectorDBConfig:
 class LLMConfig:
     model_path: str = os.getenv("QWEN_MODEL_PATH", "Qwen/Qwen2.5-1.5B-Instruct-GGUF")
     model_file: str = os.getenv("QWEN_MODEL_FILE", "qwen2.5-1.5b-instruct-q4_k_m.gguf")
+    transformers_model_id: str = os.getenv("QWEN_TRANSFORMERS_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
     n_ctx: int = 4096
     n_gpu_layers: int = int(os.getenv("QWEN_GPU_LAYERS", "-1"))
     max_tokens: int = 512
