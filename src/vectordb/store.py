@@ -108,6 +108,22 @@ class VectorStore:
             for r in results.points
         ]
 
+    def get_by_ids(self, spotify_ids: list[str]) -> list[dict]:
+        """Fetch tracks by their Spotify IDs directly from Qdrant."""
+        if not spotify_ids:
+            return []
+        point_ids = [self._spotify_id_to_point_id(sid) for sid in spotify_ids]
+        try:
+            results = self.client.retrieve(
+                collection_name=self.collection,
+                ids=point_ids,
+                with_payload=True,
+            )
+            return [r.payload for r in results if r.payload]
+        except Exception as e:
+            logger.warning(f"Failed to retrieve tracks by IDs: {e}")
+            return []
+
     def _retry(self, operation_name: str, func):
         retries = settings.vectordb.retry_count
         backoff = settings.vectordb.retry_backoff_seconds
