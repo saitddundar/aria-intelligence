@@ -97,12 +97,20 @@ class RAGConfig:
 
 
 @dataclass
+class CollaborativeConfig:
+    enable: bool = os.getenv("COLLAB_ENABLE", "true").lower() == "true"
+    boost_factor: float = float(os.getenv("COLLAB_BOOST_FACTOR", "0.15"))
+    max_collab_inject: int = int(os.getenv("COLLAB_MAX_INJECT", "5"))
+
+
+@dataclass
 class Settings:
     spotify: SpotifyConfig = None
     embedding: EmbeddingConfig = None
     vectordb: VectorDBConfig = None
     llm: LLMConfig = None
     rag: RAGConfig = None
+    collaborative: CollaborativeConfig = None
 
     def __post_init__(self):
         self.spotify = self.spotify or SpotifyConfig()
@@ -110,6 +118,7 @@ class Settings:
         self.vectordb = self.vectordb or VectorDBConfig()
         self.llm = self.llm or LLMConfig()
         self.rag = self.rag or RAGConfig()
+        self.collaborative = self.collaborative or CollaborativeConfig()
 
 
 settings = Settings()
