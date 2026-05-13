@@ -85,6 +85,8 @@ class RecommendContext(BaseModel):
     preferred_genres: list[str] = []
     exclude_track_ids: list[str] = []
     language: str = ""
+    liked_track_ids: list[str] = []
+    collab_track_ids: list[str] = []
 
 
 class RecommendRequest(BaseModel):
@@ -182,8 +184,16 @@ def recommend_by_mood(
 
     mood_key = _resolve_mood_key(req.mood)
 
+    context = None
+    if req.context:
+        context = {
+            "exclude_track_ids": req.context.exclude_track_ids,
+            "liked_track_ids": req.context.liked_track_ids,
+            "collab_track_ids": req.context.collab_track_ids,
+        }
+
     try:
-        result = chain.recommend(mood_key, limit=req.limit)
+        result = chain.recommend(mood_key, limit=req.limit, context=context)
     except Exception as e:
         logger.exception(f"Recommendation failed: {e}")
         raise HTTPException(
