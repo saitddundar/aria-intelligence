@@ -77,9 +77,9 @@ class VectorStore:
             batch = points[i:i + UPSERT_BATCH_SIZE]
             self._retry(
                 "qdrant.upsert",
-                lambda: self.client.upsert(
+                lambda b=batch: self.client.upsert(
                     collection_name=self.collection,
-                    points=batch,
+                    points=b,
                 ),
             )
 

@@ -60,7 +60,7 @@ def _enrich_with_genres(sp: spotipy.Spotify, tracks: list[dict]):
     for i in range(0, len(artist_id_list), 50):
         batch = artist_id_list[i:i + 50]
         try:
-            artists_data = _retry("spotify.artists", lambda: sp.artists(batch))
+            artists_data = _retry("spotify.artists", lambda b=batch: sp.artists(b))
             for artist in artists_data["artists"]:
                 artist_genres[artist["id"]] = artist.get("genres", [])
         except Exception as e:
@@ -81,7 +81,7 @@ def _enrich_with_audio_features(sp: spotipy.Spotify, tracks: list[dict]):
         batch_ids = track_ids[i:i + 100]
         batch_tracks = tracks[i:i + 100]
         try:
-            features_list = _retry("spotify.audio_features", lambda: sp.audio_features(batch_ids))
+            features_list = _retry("spotify.audio_features", lambda b=batch_ids: sp.audio_features(b))
         except Exception as e:
             logger.warning(f"Failed to fetch audio features: {e}")
             continue
@@ -140,7 +140,7 @@ def fetch_playlist_tracks(playlist_id: str) -> list[dict]:
 
         # paginate
         if results.get("next"):
-            results = _retry("spotify.next", lambda: sp.next(results))
+            results = _retry("spotify.next", lambda r=results: sp.next(r))
         else:
             break
 
@@ -155,21 +155,31 @@ def fetch_playlist_tracks(playlist_id: str) -> list[dict]:
 def fetch_tracks_by_genre(genre: str, limit: int = 50) -> list[dict]:
     """Search tracks by genre with full metadata enrichment."""
     sp = get_spotify_client()
-    limit = min(limit, 50)  # Spotify search API max
+    page_size = 10  # Spotify search API current max
     genre_query = genre.strip()
     if " " in genre_query:
         genre_query = f'"{genre_query}"'
 
-    results = _retry(
-        "spotify.search",
-        lambda: sp.search(q=f"genre:{genre_query}", type="track", limit=limit),
-    )
-
     tracks = []
-    for track in results["tracks"]["items"]:
-        if not track.get("id"):
-            continue
-        tracks.append(_parse_track_item(track))
+    offset = 0
+    while len(tracks) < limit:
+        batch_limit = min(page_size, limit - len(tracks))
+        current_offset = offset
+        results = _retry(
+            "spotify.search",
+            lambda: sp.search(
+                q=genre_query, type="track",
+                limit=batch_limit, offset=current_offset,
+            ),
+        )
+        items = results["tracks"]["items"]
+        if not items:
+            break
+        for track in items:
+            if not track.get("id"):
+                continue
+            tracks.append(_parse_track_item(track))
+        offset += len(items)
 
     _enrich_with_genres(sp, tracks)
     _enrich_with_audio_features(sp, tracks)
