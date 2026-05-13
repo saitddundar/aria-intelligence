@@ -9,6 +9,7 @@ from src.api.routes import router
 from src.embedding.embedder import TrackEmbedder
 from src.llm.generator import QwenGenerator
 from src.rag.chain import RAGChain
+from src.sentiment.analyzer import SentimentAnalyzer
 from src.vectordb.store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -21,11 +22,13 @@ async def lifespan(app: FastAPI):
     store.create_collection()
     generator = QwenGenerator()
     rag_chain = RAGChain(embedder=embedder, store=store, generator=generator)
+    analyzer = SentimentAnalyzer(generator)
 
     app.state.embedder = embedder
     app.state.store = store
     app.state.generator = generator
     app.state.rag_chain = rag_chain
+    app.state.analyzer = analyzer
 
     yield
 
