@@ -10,7 +10,12 @@ Mevcut Sarkilar:
 Yanitini asagidaki JSON formatinda ver:
 {{
     "selected_indices": [1, 3, 5],
-    "explanation": "Sinyaller: genre + enerji. Neden: ..."
+    "explanation": "Sinyaller: genre + enerji. Neden: ...",
+    "reasons": {{
+        "1": "Bu sarkinin sakin melodisi ruh haline uyuyor.",
+        "3": "Enerjik ritmi ve pozitif sozu...",
+        "5": "Nostaljik havasi ve yumusak vokalleri..."
+    }}
 }}
 
 Kurallar:
@@ -18,6 +23,7 @@ Kurallar:
 - Tam olarak {top_k} sarki sec
 - Aciklamayi su formatta yaz: "Sinyaller: <en az 2 ipucu>. Neden: <2-3 cumle>"
 - Sinyaller listesinde en az 2 farkli ipucu olsun (genre, audio_features, yil/donem, tempo/enerji)
+- reasons alaninda her secilen sarki icin kisa (1 cumle) Turkce aciklama yaz
 - Ayni sanatcidan en fazla {max_per_artist} sarki sec (mecbur kalmadikca)
 - Aciklamayi Turkce yaz, 2-3 cumle yeterli
 """
