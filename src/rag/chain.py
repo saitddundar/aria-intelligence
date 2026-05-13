@@ -8,6 +8,7 @@ from src.llm.generator import QwenGenerator
 from sentence_transformers import CrossEncoder
 
 from src.llm.prompts import MOOD_DESCRIPTIONS, MOOD_EMBEDDING_HINTS, build_recommendation_prompt
+from src.rag.collaborative import boost_with_collab
 
 logger = logging.getLogger(__name__)
 
@@ -140,13 +141,14 @@ class RAGChain:
 
         return filtered
 
-    def recommend(self, mood: str, limit: int = 10) -> RAGResponse:
+    def recommend(self, mood: str, limit: int = 10, context: dict | None = None) -> RAGResponse:
         """
         Ana tavsiye fonksiyonu:
         1. Kullanıcının isteğini (mood) vektöre çevirir.
         2. Vektör veritabanından benzer şarkıları bulur.
         3. Sonuçları sıralar (rerank) ve çeşitlendirir.
-        4. En son LLM kullanarak nihai listeyi ve mantıklı bir açıklamayı oluşturur.
+        4. Collaborative filtering sinyalleriyle boost eder.
+        5. En son LLM kullanarak nihai listeyi ve mantıklı bir açıklamayı oluşturur.
         """
         # 1. Embed mood query
         mood_key = mood.strip().lower()
@@ -174,7 +176,26 @@ class RAGChain:
         if not candidates:
             return RAGResponse()
 
-        # 3. If generator available, use RAG to rerank and explain
+        # 3. Apply collaborative filtering signals
+        if context and settings.collaborative.enable:
+            exclude_ids = context.get("exclude_track_ids", [])
+            if exclude_ids:
+                candidates = [c for c in candidates if c.get("spotify_id") not in set(exclude_ids)]
+
+            collab_ids = context.get("collab_track_ids", [])
+            liked_ids = context.get("liked_track_ids", [])
+            if collab_ids or liked_ids:
+                candidates = boost_with_collab(
+                    candidates=candidates,
+                    collab_track_ids=collab_ids,
+                    liked_track_ids=liked_ids,
+                    store=self.store,
+                )
+
+        if not candidates:
+            return RAGResponse()
+
+        # 5. If generator available, use RAG to rerank and explain
         if self.generator and self.generator.is_available:
             try:
                 return self._rag_recommend(mood_label, mood_detail, candidates, limit)
@@ -183,7 +204,7 @@ class RAGChain:
                 if not settings.rag.fallback_on_error:
                     raise
 
-        # 4. Fallback: return top results from vector search directly
+        # 6. Fallback: return top results from vector search directly
         return RAGResponse(
             tracks=candidates[:limit],
             explanation="",
