@@ -89,12 +89,26 @@ class RecommendContext(BaseModel):
     collab_track_ids: list[str] = []
 
 
+# Contrasting moods for "shift" mode
+_SHIFT_MOOD = {
+    "sad": "happy",
+    "angry": "relaxed",
+    "energetic": "relaxed",
+    "relaxed": "energetic",
+    "nostalgic": "happy",
+    "happy": "energetic",
+    "focused": "happy",
+    "romantic": "energetic",
+}
+
+
 class RecommendRequest(BaseModel):
     """Accepts both old format (mood as string) and Go contract (mood as object)."""
     mood: Union[str, MoodSnapshot]
     user_id: int = 0
     mood_id: int = 0
     limit: int = 10
+    mode: str = "match"   # "match" = stay in mood | "shift" = change mood
     context: RecommendContext | None = None
 
 
@@ -183,6 +197,11 @@ def recommend_by_mood(
     start = time.time()
 
     mood_key = _resolve_mood_key(req.mood)
+
+    # Shift mode: recommend contrasting mood to change the user's state
+    if req.mode == "shift":
+        mood_key = _SHIFT_MOOD.get(mood_key, "happy")
+        logger.info(f"Shift mode active → redirected to mood: {mood_key}")
 
     context = None
     if req.context:

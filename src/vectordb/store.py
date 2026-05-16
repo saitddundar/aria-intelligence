@@ -31,20 +31,20 @@ class VectorStore:
     def create_collection(self):
         """Create the vector collection if it doesn't exist."""
         try:
-            self._retry(
-                "qdrant.create_collection",
-                lambda: self.client.create_collection(
-                    collection_name=self.collection,
-                    vectors_config=VectorParams(
-                        size=settings.vectordb.vector_size,
-                        distance=Distance.COSINE,
-                    ),
+            existing = [c.name for c in self.client.get_collections().collections]
+            if self.collection in existing:
+                logger.info(f"Collection '{self.collection}' already exists, skipping creation")
+                return
+            self.client.create_collection(
+                collection_name=self.collection,
+                vectors_config=VectorParams(
+                    size=settings.vectordb.vector_size,
+                    distance=Distance.COSINE,
                 ),
             )
             logger.info(f"Created collection '{self.collection}'")
-        except Exception:
-            # collection already exists — safe to ignore
-            pass
+        except Exception as e:
+            logger.warning(f"create_collection error (non-fatal): {e}")
 
     def upsert_tracks(self, tracks: list[dict], embeddings: list[list[float]]):
         """Store track embeddings with metadata in batches."""
@@ -95,17 +95,17 @@ class VectorStore:
         limit = min(limit, MAX_SEARCH_LIMIT)
 
         results = self._retry(
-            "qdrant.query_points",
-            lambda: self.client.query_points(
+            "qdrant.search",
+            lambda: self.client.search(
                 collection_name=self.collection,
-                query=query_vector,
+                query_vector=query_vector,
                 limit=limit,
                 score_threshold=score_threshold,
             ),
         )
         return [
             {"score": r.score, **r.payload}
-            for r in results.points
+            for r in results
         ]
 
     def get_by_ids(self, spotify_ids: list[str]) -> list[dict]:

@@ -47,8 +47,8 @@ class EmbeddingConfig:
 
 @dataclass
 class VectorDBConfig:
-    host: str = "localhost"
-    port: int = 6333  # Qdrant default
+    host: str = os.getenv("QDRANT_HOST", "localhost")
+    port: int = int(os.getenv("QDRANT_PORT", "6333"))  # Qdrant default
     collection_name: str = "aria_tracks"
     vector_size: int = 1024  # bge-m3 output dim
     retry_count: int = int(os.getenv("QDRANT_RETRY_COUNT", "2"))
